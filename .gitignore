@@ -2,6 +2,11 @@
 backend/.venv/
 __pycache__/
 *.pyc
+
+# Environment / secrets
+backend/.env
+
+# Old SQLite database (replaced by Postgres)
 backend/*.db
 
 # Node

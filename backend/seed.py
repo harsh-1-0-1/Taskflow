@@ -1,22 +1,14 @@
-import sqlite3
-
-from db import DB_PATH, init_db, SCHEMA_PATH
-
-
-def _connect():
-    conn = sqlite3.connect(DB_PATH)
-    conn.row_factory = sqlite3.Row
-    return conn
+from db import connect, init_db
 
 
 def seed_if_empty():
     init_db()
-    conn = _connect()
+    conn = connect()
     try:
         has_boards = conn.execute("SELECT COUNT(*) AS n FROM boards").fetchone()["n"]
         if has_boards:
             return False
-        conn.execute("INSERT INTO boards (name) VALUES (?)", ("My Team Board",))
+        conn.execute("INSERT INTO boards (name) VALUES (%s)", ("My Team Board",))
         board_id = 1
         columns = [
             ("To Do", 0),
@@ -25,17 +17,17 @@ def seed_if_empty():
         ]
         for name, position in columns:
             conn.execute(
-                "INSERT INTO columns (board_id, name, position) VALUES (?, ?, ?)",
+                "INSERT INTO columns (board_id, name, position) VALUES (%s, %s, %s)",
                 (board_id, name, position),
             )
         todo = conn.execute(
-            "SELECT id FROM columns WHERE board_id = ? AND position = 0", (board_id,)
+            "SELECT id FROM columns WHERE board_id = %s AND position = 0", (board_id,)
         ).fetchone()["id"]
         progress = conn.execute(
-            "SELECT id FROM columns WHERE board_id = ? AND position = 1", (board_id,)
+            "SELECT id FROM columns WHERE board_id = %s AND position = 1", (board_id,)
         ).fetchone()["id"]
         done = conn.execute(
-            "SELECT id FROM columns WHERE board_id = ? AND position = 2", (board_id,)
+            "SELECT id FROM columns WHERE board_id = %s AND position = 2", (board_id,)
         ).fetchone()["id"]
 
         tasks = [
@@ -49,7 +41,7 @@ def seed_if_empty():
         ]
         for column_id, title, description, priority in tasks:
             conn.execute(
-                "INSERT INTO tasks (column_id, title, description, priority) VALUES (?, ?, ?, ?)",
+                "INSERT INTO tasks (column_id, title, description, priority) VALUES (%s, %s, %s, %s)",
                 (column_id, title, description, priority),
             )
         conn.commit()

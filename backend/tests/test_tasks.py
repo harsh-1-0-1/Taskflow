@@ -1,29 +1,33 @@
-import sqlite3
-
 import pytest
 
+from db import SCHEMA_PATH, connect
 from repositories import task_repository
 from services import task_service
 
-SCHEMA_PATH = "schema.sql"
+TEST_SCHEMA = "test_taskflow"
 
 
 @pytest.fixture
 def conn():
-    c = sqlite3.connect(":memory:")
-    c.row_factory = sqlite3.Row
-    with open(SCHEMA_PATH) as f:
-        c.executescript(f.read())
-    yield c
-    c.close()
+    conn = connect()
+    try:
+        conn.execute(f"DROP SCHEMA IF EXISTS {TEST_SCHEMA} CASCADE")
+        conn.execute(f"CREATE SCHEMA {TEST_SCHEMA}")
+        conn.execute(f"SET search_path TO {TEST_SCHEMA}")
+        with open(SCHEMA_PATH) as f:
+            conn.execute(f.read())
+        conn.commit()
+        yield conn
+    finally:
+        conn.close()
 
 
 @pytest.fixture
 def seeded(conn):
-    conn.execute("INSERT INTO boards (name) VALUES (?)", ("Test Board",))
+    conn.execute("INSERT INTO boards (name) VALUES (%s)", ("Test Board",))
     for name, position in (("To Do", 0), ("Done", 1)):
         conn.execute(
-            "INSERT INTO columns (board_id, name, position) VALUES (1, ?, ?)",
+            "INSERT INTO columns (board_id, name, position) VALUES (1, %s, %s)",
             (name, position),
         )
     conn.commit()

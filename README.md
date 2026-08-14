@@ -1,23 +1,51 @@
 # TaskFlow — Kanban Board
 
-A minimal kanban board: FastAPI + SQLite on the backend, React (Vite) on the frontend.
+A minimal kanban board: FastAPI + Postgres on the backend, React (Vite) on the frontend.
 
 ## Setup
 
-### Backend (port 8000)
+### 1. Create a Postgres database
+
+The backend talks to Postgres via a `DATABASE_URL` connection string (e.g. the
+Internal Database URL from a free Render Postgres instance). There's no
+persistent disk on Render's free web service, so the database is hosted
+externally.
+
+### 2. Backend (port 8000)
 
 ```bash
 cd backend
 python3 -m venv .venv
 source .venv/bin/activate          # Windows: .venv\Scripts\activate
 pip install -r requirements.txt
+```
+
+Set the connection string. Either export it, or copy `.env.example` to `.env`
+(it's loaded automatically):
+
+```bash
+export DATABASE_URL=postgresql://USER:PASSWORD@HOST:PORT/DATABASE
+# or: cp .env.example .env   then edit DATABASE_URL in .env
+```
+
+Load the schema and seed data once, before the first run:
+
+```bash
+psql "$DATABASE_URL" -f schema.sql
+python seed.py
+```
+
+Then start the server:
+
+```bash
 uvicorn main:app --reload
 ```
 
 - API runs at `http://localhost:8000`
 - Interactive docs at `http://localhost:8000/docs` (free from FastAPI)
-- The database (`taskflow.db`) is created and seeded automatically on first
-  startup (1 board, 3 columns, 7 sample tasks).
+- The schema is also applied automatically on startup (tables are created with
+  `IF NOT EXISTS`); `seed.py` only inserts data if the boards table is empty
+  (1 board, 3 columns, 7 sample tasks).
 
 ### Frontend (port 5173)
 
@@ -39,7 +67,9 @@ cd backend
 .venv/bin/python -m pytest tests -v
 ```
 
-Tests use an in-memory SQLite database — they never touch `taskflow.db`.
+Tests run against a real Postgres instance (via `DATABASE_URL`), using a
+dedicated `test_taskflow` schema that is dropped and recreated for every test —
+they never touch your real data.
 
 ## API
 
@@ -59,28 +89,28 @@ See [`backend/schema.sql`](backend/schema.sql). Three tables:
 
 ```sql
 CREATE TABLE boards (
-    id         INTEGER PRIMARY KEY AUTOINCREMENT,
+    id         SERIAL PRIMARY KEY,
     name       TEXT NOT NULL,
-    created_at TEXT NOT NULL DEFAULT (datetime('now'))
+    created_at TIMESTAMP NOT NULL DEFAULT NOW()
 );
 
 CREATE TABLE columns (
-    id         INTEGER PRIMARY KEY AUTOINCREMENT,
+    id         SERIAL PRIMARY KEY,
     board_id   INTEGER NOT NULL,
     name       TEXT NOT NULL,
     position   INTEGER NOT NULL,
-    created_at TEXT NOT NULL DEFAULT (datetime('now')),
+    created_at TIMESTAMP NOT NULL DEFAULT NOW(),
     FOREIGN KEY (board_id) REFERENCES boards(id)
 );
 
 CREATE TABLE tasks (
-    id          INTEGER PRIMARY KEY AUTOINCREMENT,
+    id          SERIAL PRIMARY KEY,
     column_id   INTEGER NOT NULL,
     title       TEXT NOT NULL,
     description TEXT,
     priority    TEXT NOT NULL DEFAULT 'Medium'
                 CHECK (priority IN ('Low','Medium','High')),
-    created_at  TEXT NOT NULL DEFAULT (datetime('now')),
+    created_at  TIMESTAMP NOT NULL DEFAULT NOW(),
     FOREIGN KEY (column_id) REFERENCES columns(id)
 );
 ```
@@ -95,7 +125,7 @@ Defined as named functions in the repository layer:
 SELECT c.id, c.name, COUNT(t.id) AS task_count
 FROM columns c
 LEFT JOIN tasks t ON t.column_id = c.id
-WHERE c.board_id = ?
+WHERE c.board_id = %s
 GROUP BY c.id, c.name
 ORDER BY c.position;
 ```
@@ -106,7 +136,7 @@ ORDER BY c.position;
 SELECT t.*
 FROM tasks t
 JOIN columns c ON c.id = t.column_id
-WHERE c.board_id = ? AND t.priority = ?
+WHERE c.board_id = %s AND t.priority = %s
 ORDER BY t.created_at DESC;
 ```
 
@@ -137,6 +167,12 @@ in the service layer so every caller is protected by the same rule.
 - Task moving uses a "Move to" dropdown (the spec says a working dropdown
   beats a broken drag-and-drop); drag-and-drop is a stretch goal.
 - Blank-titled tasks are rejected server-side with HTTP 400.
+- The backend originally used SQLite; it was swapped to Postgres so the app can
+  be hosted on Render, whose free web service has no persistent disk. Only the
+  connection layer and schema syntax changed — the repository/service/router
+  architecture and the SQL logic are identical. Psycopg2 connections are
+  wrapped with a sqlite3-style `.execute()` helper (`backend/db.py`) so call
+  sites didn't change.
 
 ## What I'd add with more time
 
@@ -152,7 +188,6 @@ Roughly 4–5 hours including setup, verification, and this README.
 ## One thing I learned
 
 Turning "status" into just `column_id` made moving a task a single
-`UPDATE tasks SET column_id = ?` — removing a whole class of bugs where a
+`UPDATE tasks SET column_id = %s` — removing a whole class of bugs where a
 status string and a column disagree. Merging related concepts that can't
 meaningfully diverge is usually simpler than modeling them separately.
-# Taskflow

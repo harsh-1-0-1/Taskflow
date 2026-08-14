@@ -5,7 +5,7 @@ def get_task_counts_by_column(conn, board_id):
         SELECT c.id, c.name, COUNT(t.id) AS task_count
         FROM columns c
         LEFT JOIN tasks t ON t.column_id = c.id
-        WHERE c.board_id = ?
+        WHERE c.board_id = %s
         GROUP BY c.id, c.name
         ORDER BY c.position
         """,
