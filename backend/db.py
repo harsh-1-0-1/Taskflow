@@ -2,11 +2,14 @@ import os
 
 import psycopg2
 import psycopg2.extras
+import psycopg2.pool
 from dotenv import load_dotenv
 
 load_dotenv()
 
 SCHEMA_PATH = os.path.join(os.path.dirname(__file__), "schema.sql")
+
+_pool = None
 
 
 class Connection(psycopg2.extensions.connection):
@@ -35,6 +38,20 @@ def connect():
     )
 
 
+def _get_pool():
+    global _pool
+    if _pool is None:
+        maxconn = int(os.environ.get("DB_POOL_MAX", "10"))
+        _pool = psycopg2.pool.ThreadedConnectionPool(
+            minconn=1,
+            maxconn=maxconn,
+            dsn=os.environ["DATABASE_URL"],
+            connection_factory=Connection,
+            cursor_factory=psycopg2.extras.RealDictCursor,
+        )
+    return _pool
+
+
 def init_db():
     conn = connect()
     try:
@@ -47,8 +64,9 @@ def init_db():
 
 
 def get_db():
-    conn = connect()
+    conn = _get_pool().getconn()
     try:
         yield conn
     finally:
-        conn.close()
+        conn.rollback()
+        _get_pool().putconn(conn)

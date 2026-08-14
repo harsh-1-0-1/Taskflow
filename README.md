@@ -60,6 +60,42 @@ Open `http://localhost:5173`.
 Because the two run on different ports, the backend enables CORS for
 `http://localhost:5173` via `CORSMiddleware` in `backend/main.py`.
 
+## Deployment
+
+### Backend on Render
+
+1. Create a Render **Postgres** instance and note its Internal Database URL.
+2. Create a Render **Web Service** from this repo (root folder is fine —
+   `render.yaml` is included). Set these environment variables:
+   - `DATABASE_URL` — the Postgres Internal Database URL
+   - `CORS_ORIGINS` — comma-separated list of frontend origins, e.g.
+     `https://taskflow.vercel.app`
+3. Load schema + seed once against the Render DB:
+   ```bash
+   psql "$DATABASE_URL" -f schema.sql
+   python seed.py
+   ```
+   (tables are also created on startup with `IF NOT EXISTS`, so step 3's first
+   command is belt-and-suspenders.)
+4. Deploy. The start command (`uvicorn main:app --host 0.0.0.0 --port $PORT`)
+   uses Render's injected `$PORT`.
+
+Connection pooling: `get_db()` in `backend/db.py` hands out connections from a
+`ThreadedConnectionPool` (max size configurable via `DB_POOL_MAX`) and rolls
+back + returns them on request end, so every HTTP request doesn't open a fresh
+TCP connection.
+
+### Frontend on Vercel
+
+1. Import the repo in Vercel (it auto-detects Vite: build `npm run build`,
+   output `dist`).
+2. Set one environment variable:
+   - `VITE_API_URL` — the deployed backend URL, e.g. `https://taskflow-backend.onrender.com`
+3. Deploy. `vercel.json` rewrites all routes to `index.html`.
+
+The frontend reads `VITE_API_URL` at build time (`src/api/client.js`), falling
+back to `http://localhost:8000` locally — see `frontend/.env.example`.
+
 ## Tests
 
 ```bash
