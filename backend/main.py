@@ -38,6 +38,11 @@ app.include_router(board_router.router)
 app.include_router(task_router.router)
 
 
+@app.get("/")
+def root():
+    return {"status": "ok"}
+
+
 @app.get("/health")
 def health():
     return {"status": "ok"}
