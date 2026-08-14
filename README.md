@@ -13,16 +13,16 @@ docker compose up -d --build
 
 - Frontend: `http://localhost:5173`
 - Backend: `http://localhost:8000` (docs at `/docs`)
-- Postgres: `localhost:5435` (`taskflow` / `taskflow`, db `taskflow`)
+- Postgres: `localhost:5435` (`taskflow` / `taskflow`, database `taskflow`)
 
 The backend applies the schema and seeds sample data on first start
 (`IF NOT EXISTS` tables, empty-board check). Data lives in the named volume
-`taskflow-pgdata`, so it survives container restarts.
+`taskflow_pg_data`, so it survives container restarts.
 
 To run just the database (e.g. for local development outside Docker):
 
 ```bash
-docker compose up -d db        # exposes Postgres on localhost:5435
+docker compose up -d postgres    # exposes Postgres on localhost:5435
 ```
 
 ## Setup (running the parts directly)
@@ -32,7 +32,7 @@ docker compose up -d db        # exposes Postgres on localhost:5435
 The backend talks to Postgres via a `DATABASE_URL` connection string (e.g. the
 Internal Database URL from a free Render Postgres instance). There's no
 persistent disk on Render's free web service, so the database is hosted
-externally. Locally, `docker compose up -d db` provides a Postgres on
+externally. Locally, `docker compose up -d postgres` provides a Postgres on
 `localhost:5435`.
 
 ### 2. Backend (port 8000)

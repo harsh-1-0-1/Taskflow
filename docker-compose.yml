@@ -1,7 +1,8 @@
 services:
-  db:
+  postgres:
     image: postgres:16-alpine
     container_name: taskflow-postgres
+    restart: unless-stopped
     environment:
       POSTGRES_USER: taskflow
       POSTGRES_PASSWORD: taskflow
@@ -9,7 +10,7 @@ services:
     ports:
       - "5435:5432"
     volumes:
-      - taskflow-pgdata:/var/lib/postgresql/data
+      - taskflow_pg_data:/var/lib/postgresql/data
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U taskflow -d taskflow"]
       interval: 5s
@@ -18,17 +19,21 @@ services:
 
   backend:
     build: ./backend
+    container_name: taskflow-backend
+    restart: unless-stopped
     environment:
-      DATABASE_URL: postgresql://taskflow:taskflow@db:5432/taskflow
+      DATABASE_URL: postgresql://taskflow:taskflow@postgres:5432/taskflow
       CORS_ORIGINS: http://localhost:5173
     ports:
       - "8000:8000"
     depends_on:
-      db:
+      postgres:
         condition: service_healthy
 
   frontend:
     build: ./frontend
+    container_name: taskflow-frontend
+    restart: unless-stopped
     environment:
       VITE_API_URL: http://localhost:8000
     ports:
@@ -37,4 +42,4 @@ services:
       - backend
 
 volumes:
-  taskflow-pgdata:
+  taskflow_pg_data:
